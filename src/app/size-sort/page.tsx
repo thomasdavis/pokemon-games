@@ -2,176 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { pokemon, Pokemon } from "@/data/pokemon";
-
-// Pokemon heights in meters (approximate real heights from the games)
-// Heights >= 1.0m are considered "BIG", < 1.0m are "SMALL"
-const pokemonHeights: Record<number, number> = {
-  // Tiny Pokemon (under 0.5m)
-  10: 0.3,  // Caterpie
-  11: 0.7,  // Metapod
-  13: 0.3,  // Weedle
-  14: 0.6,  // Kakuna
-  16: 0.3,  // Pidgey
-  19: 0.3,  // Rattata
-  21: 0.3,  // Spearow
-  25: 0.4,  // Pikachu
-  27: 0.6,  // Sandshrew
-  29: 0.4,  // Nidoran F
-  32: 0.5,  // Nidoran M
-  35: 0.6,  // Clefairy
-  37: 0.6,  // Vulpix
-  39: 0.5,  // Jigglypuff
-  41: 0.8,  // Zubat
-  43: 0.5,  // Oddish
-  46: 0.3,  // Paras
-  48: 1.0,  // Venonat
-  50: 0.2,  // Diglett
-  52: 0.4,  // Meowth
-  54: 0.8,  // Psyduck
-  56: 0.5,  // Mankey
-  58: 0.7,  // Growlithe
-  60: 0.6,  // Poliwag
-  63: 0.9,  // Abra
-  66: 0.8,  // Machop
-  69: 0.7,  // Bellsprout
-  72: 0.9,  // Tentacool
-  74: 0.4,  // Geodude
-  77: 1.0,  // Ponyta
-  79: 1.2,  // Slowpoke
-  81: 0.3,  // Magnemite
-  83: 0.8,  // Farfetch'd
-  86: 1.1,  // Seel
-  88: 0.9,  // Grimer
-  90: 0.3,  // Shellder
-  92: 1.3,  // Gastly
-  96: 1.0,  // Drowzee
-  98: 0.4,  // Krabby
-  100: 0.5, // Voltorb
-  102: 0.4, // Exeggcute
-  104: 0.4, // Cubone
-  109: 0.6, // Koffing
-  116: 0.4, // Horsea
-  118: 0.6, // Goldeen
-  120: 0.8, // Staryu
-  129: 0.9, // Magikarp
-  132: 0.3, // Ditto
-  133: 0.3, // Eevee
-  137: 0.8, // Porygon
-  138: 0.4, // Omanyte
-  140: 0.5, // Kabuto
-  147: 1.8, // Dratini
-
-  // Small-Medium Pokemon (0.5m - 1.0m)
-  1: 0.7,   // Bulbasaur
-  4: 0.6,   // Charmander
-  7: 0.5,   // Squirtle
-  23: 2.0,  // Ekans
-  40: 1.0,  // Wigglytuff
-  44: 0.8,  // Gloom
-
-  // Medium Pokemon (1.0m - 1.5m)
-  2: 1.0,   // Ivysaur
-  5: 1.1,   // Charmeleon
-  8: 1.0,   // Wartortle
-  12: 1.1,  // Butterfree
-  15: 1.0,  // Beedrill
-  17: 1.1,  // Pidgeotto
-  20: 0.7,  // Raticate
-  26: 0.8,  // Raichu
-  28: 1.0,  // Sandslash
-  30: 0.8,  // Nidorina
-  33: 0.9,  // Nidorino
-  36: 1.3,  // Clefable
-  38: 1.1,  // Ninetales
-  42: 1.6,  // Golbat
-  45: 1.2,  // Vileplume
-  47: 1.0,  // Parasect
-  49: 1.5,  // Venomoth
-  51: 0.7,  // Dugtrio
-  53: 1.0,  // Persian
-  55: 1.7,  // Golduck
-  57: 1.0,  // Primeape
-  61: 1.0,  // Poliwhirl
-  64: 1.3,  // Kadabra
-  67: 1.5,  // Machoke
-  70: 1.0,  // Weepinbell
-  75: 1.0,  // Graveler
-  80: 1.6,  // Slowbro
-  82: 1.0,  // Magneton
-  84: 1.4,  // Doduo
-  87: 1.7,  // Dewgong
-  89: 1.2,  // Muk
-  91: 1.5,  // Cloyster
-  93: 1.6,  // Haunter
-  94: 1.5,  // Gengar
-  97: 1.6,  // Hypno
-  99: 1.3,  // Kingler
-  101: 1.2, // Electrode
-  105: 1.0, // Marowak
-  106: 1.5, // Hitmonlee
-  107: 1.4, // Hitmonchan
-  108: 1.2, // Lickitung
-  110: 1.2, // Weezing
-  113: 1.1, // Chansey
-  114: 1.0, // Tangela
-  117: 1.2, // Seadra
-  119: 1.3, // Seaking
-  121: 1.1, // Starmie
-  122: 1.3, // Mr. Mime
-  124: 1.4, // Jynx
-  127: 1.5, // Pinsir
-  134: 1.0, // Vaporeon
-  135: 0.8, // Jolteon
-  136: 0.9, // Flareon
-  139: 1.0, // Omastar
-
-  // Large Pokemon (1.5m - 2.0m)
-  3: 2.0,   // Venusaur
-  6: 1.7,   // Charizard
-  9: 1.6,   // Blastoise
-  18: 1.5,  // Pidgeot
-  22: 1.2,  // Fearow
-  24: 3.5,  // Arbok
-  31: 1.3,  // Nidoqueen
-  34: 1.4,  // Nidoking
-  59: 1.9,  // Arcanine
-  62: 1.3,  // Poliwrath
-  65: 1.5,  // Alakazam
-  68: 1.6,  // Machamp
-  71: 1.7,  // Victreebel
-  73: 1.6,  // Tentacruel
-  76: 1.4,  // Golem
-  78: 1.7,  // Rapidash
-  103: 2.0, // Exeggutor
-  111: 1.0, // Rhyhorn
-  112: 1.9, // Rhydon
-  115: 2.2, // Kangaskhan
-  123: 1.5, // Scyther
-  125: 1.1, // Electabuzz
-  126: 1.3, // Magmar
-  128: 1.4, // Tauros
-  141: 1.3, // Kabutops
-  142: 1.8, // Aerodactyl
-  148: 4.0, // Dragonair
-  150: 2.0, // Mewtwo
-
-  // Giant Pokemon (over 2.0m)
-  95: 8.8,  // Onix - HUGE!
-  130: 6.5, // Gyarados - HUGE!
-  131: 2.5, // Lapras
-  143: 2.1, // Snorlax
-  144: 1.7, // Articuno
-  145: 1.6, // Zapdos
-  146: 2.0, // Moltres
-  149: 2.2, // Dragonite
-};
+import { pokemon, Pokemon, getHeightInMeters } from "@/data/pokemon";
 
 // Threshold: Pokemon >= 1.2m are BIG, < 1.2m are SMALL
 const SIZE_THRESHOLD = 1.2;
-
-// Get a subset of Pokemon that have clear size data for better gameplay
-const gamePokemon = pokemon.filter((p) => pokemonHeights[p.id] !== undefined);
 
 // Celebration messages for milestones
 const celebrationMessages = [
@@ -211,8 +45,8 @@ export default function SizeSortPage() {
   const [celebrationMessage, setCelebrationMessage] = useState("");
 
   const getRandomPokemon = useCallback(() => {
-    const randomIndex = Math.floor(Math.random() * gamePokemon.length);
-    return gamePokemon[randomIndex];
+    const randomIndex = Math.floor(Math.random() * pokemon.length);
+    return pokemon[randomIndex];
   }, []);
 
   const nextPokemon = useCallback(() => {
@@ -229,7 +63,7 @@ export default function SizeSortPage() {
   const handleAnswer = (answer: "big" | "small") => {
     if (answered || !currentPokemon) return;
 
-    const height = pokemonHeights[currentPokemon.id] || 1.0;
+    const height = getHeightInMeters(currentPokemon);
     const actualSize = height >= SIZE_THRESHOLD ? "big" : "small";
     const correct = answer === actualSize;
 
@@ -255,7 +89,7 @@ export default function SizeSortPage() {
     }
   };
 
-  const height = currentPokemon ? pokemonHeights[currentPokemon.id] || 1.0 : 1.0;
+  const height = currentPokemon ? getHeightInMeters(currentPokemon) : 1.0;
   const actualSize = height >= SIZE_THRESHOLD ? "BIG" : "SMALL";
 
   return (

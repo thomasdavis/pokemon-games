@@ -1,24 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
-import { pokemon } from "@/data/pokemon";
+import { evolutionChains as evolutionChainsMap, Pokemon } from "@/data/pokemon";
 
-// Evolution chains with Pokemon IDs
-const evolutionChains = [
-  { ids: [1, 2, 3], name: "Bulbasaur Family" },
-  { ids: [4, 5, 6], name: "Charmander Family" },
-  { ids: [7, 8, 9], name: "Squirtle Family" },
-  { ids: [10, 11, 12], name: "Caterpie Family" },
-  { ids: [16, 17, 18], name: "Pidgey Family" },
-  { ids: [29, 30, 31], name: "Nidoran Female Family" },
-  { ids: [43, 44, 45], name: "Oddish Family" },
-  { ids: [60, 61, 62], name: "Poliwag Family" },
-  { ids: [63, 64, 65], name: "Abra Family" },
-  { ids: [66, 67, 68], name: "Machop Family" },
-  { ids: [92, 93, 94], name: "Gastly Family" },
-  { ids: [147, 148, 149], name: "Dratini Family" },
-];
+// Game evolution chain type
+interface GameEvolutionChain {
+  pokemon: Pokemon[];
+  name: string;
+}
 
 interface EvolutionPokemon {
   id: number;
@@ -37,7 +27,29 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
+// Build game evolution chains from the database - filter to only 3-pokemon chains
+function buildGameEvolutionChains(): GameEvolutionChain[] {
+  const chains: GameEvolutionChain[] = [];
+
+  evolutionChainsMap.forEach((pokemonList) => {
+    // Only include chains with exactly 3 Pokemon (for the game mechanic)
+    if (pokemonList.length === 3) {
+      // The chain is already sorted by ID which roughly corresponds to evolution order
+      const firstName = pokemonList[0].name;
+      chains.push({
+        pokemon: pokemonList,
+        name: `${firstName} Family`,
+      });
+    }
+  });
+
+  return chains;
+}
+
 export default function EvolutionPage() {
+  // Build the evolution chains once from database data
+  const gameEvolutionChains = useMemo(() => buildGameEvolutionChains(), []);
+
   const [currentChainIndex, setCurrentChainIndex] = useState(0);
   const [shuffledPokemon, setShuffledPokemon] = useState<EvolutionPokemon[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<number[]>([]);
@@ -45,19 +57,18 @@ export default function EvolutionPage() {
   const [isComplete, setIsComplete] = useState(false);
   const [score, setScore] = useState(0);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [chainOrder, setChainOrder] = useState<number[]>([]);
+  const [shuffledChainIndices, setShuffledChainIndices] = useState<number[]>([]);
 
   const setupChain = useCallback((chainIndex: number) => {
-    const chain = evolutionChains[chainIndex];
-    const chainPokemon = chain.ids.map((id, idx) => {
-      const p = pokemon.find((poke) => poke.id === id)!;
-      return {
-        id: p.id,
-        name: p.name,
-        image: p.image,
-        position: idx,
-      };
-    });
+    if (gameEvolutionChains.length === 0) return;
+
+    const chain = gameEvolutionChains[chainIndex];
+    const chainPokemon = chain.pokemon.map((p, idx) => ({
+      id: p.id,
+      name: p.name,
+      image: p.image,
+      position: idx,
+    }));
 
     const shuffled = shuffleArray(chainPokemon);
     setShuffledPokemon(shuffled);
@@ -65,14 +76,16 @@ export default function EvolutionPage() {
     setIsComplete(false);
     setWrongClick(null);
     setShowCelebration(false);
-    setChainOrder(shuffleArray([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]));
-  }, []);
+  }, [gameEvolutionChains]);
 
   useEffect(() => {
-    // Shuffle the chains at the start
-    setChainOrder(shuffleArray([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]));
+    if (gameEvolutionChains.length === 0) return;
+
+    // Shuffle the chain indices at the start for random order
+    const indices = Array.from({ length: gameEvolutionChains.length }, (_, i) => i);
+    setShuffledChainIndices(shuffleArray(indices));
     setupChain(0);
-  }, [setupChain]);
+  }, [gameEvolutionChains, setupChain]);
 
   const handlePokemonClick = (poke: EvolutionPokemon) => {
     if (isComplete) return;
@@ -99,12 +112,12 @@ export default function EvolutionPage() {
   };
 
   const handleNextChain = () => {
-    const nextIndex = (currentChainIndex + 1) % evolutionChains.length;
+    const nextIndex = (currentChainIndex + 1) % gameEvolutionChains.length;
     setCurrentChainIndex(nextIndex);
     setupChain(nextIndex);
   };
 
-  const currentChain = evolutionChains[currentChainIndex];
+  const currentChain = gameEvolutionChains[currentChainIndex];
 
   // Get status for each pokemon
   const getPokemonStatus = (poke: EvolutionPokemon) => {
@@ -115,10 +128,21 @@ export default function EvolutionPage() {
 
   // Get the correct ordered pokemon for the answer display
   const getOrderedPokemon = () => {
-    return currentChain.ids.map((id) => {
-      return pokemon.find((p) => p.id === id)!;
-    });
+    if (!currentChain) return [];
+    return currentChain.pokemon;
   };
+
+  // Show loading state if chains aren't ready yet
+  if (gameEvolutionChains.length === 0 || !currentChain) {
+    return (
+      <div className="py-8">
+        <h1 className="text-4xl font-bold text-center text-purple-600 mb-2">
+          Evolution Chain
+        </h1>
+        <p className="text-center text-xl text-gray-600">Loading evolution chains...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="py-8">
@@ -139,7 +163,7 @@ export default function EvolutionPage() {
         </div>
         <div className="bg-gradient-to-r from-purple-400 to-pink-400 px-6 py-3 rounded-full shadow-lg">
           <span className="text-white font-bold text-xl">
-            Chain {currentChainIndex + 1} / {evolutionChains.length}
+            Chain {currentChainIndex + 1} / {gameEvolutionChains.length}
           </span>
         </div>
       </div>

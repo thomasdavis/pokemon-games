@@ -4,12 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { pokemon, Pokemon } from "@/data/pokemon";
 
-// Legendary Pokemon IDs - they move faster!
-const LEGENDARY_IDS = [144, 145, 146, 150]; // Articuno, Zapdos, Moltres, Mewtwo
-
-// Rare Pokemon that are slightly faster
-const RARE_IDS = [3, 6, 9, 130, 131, 143, 147, 148, 149]; // Final evolutions, Gyarados, Lapras, Snorlax, Dragonite line
-
 interface WildPokemon {
   id: string;
   pokemon: Pokemon;
@@ -46,9 +40,9 @@ interface CatchAnimation {
 }
 
 // Get speed multiplier based on Pokemon rarity
-function getSpeedMultiplier(pokemonId: number): number {
-  if (LEGENDARY_IDS.includes(pokemonId)) return 2.5;
-  if (RARE_IDS.includes(pokemonId)) return 1.5;
+function getSpeedMultiplier(p: Pokemon): number {
+  if (p.is_legendary) return 2.5;
+  if (p.is_mythical) return 2.0;
   return 1;
 }
 
@@ -60,7 +54,7 @@ function getRandomWildPokemon(): Pokemon {
 // Create a wild Pokemon with random position and velocity
 function createWildPokemon(areaWidth: number, areaHeight: number): WildPokemon {
   const poke = getRandomWildPokemon();
-  const speedMult = getSpeedMultiplier(poke.id);
+  const speedMult = getSpeedMultiplier(poke);
   const baseSpeed = 1 + Math.random() * 1.5;
   const angle = Math.random() * Math.PI * 2;
   const size = 70 + Math.random() * 30; // Size between 70-100
@@ -84,7 +78,7 @@ export default function CatchPage() {
   const [catchAnimations, setCatchAnimations] = useState<CatchAnimation[]>([]);
   const [gameArea, setGameArea] = useState({ width: 800, height: 500 });
   const gameAreaRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
 
   // Initialize game area size
   useEffect(() => {
@@ -275,7 +269,7 @@ export default function CatchPage() {
       <div className="flex justify-center gap-4 mb-4 flex-wrap">
         <div className="bg-gradient-to-r from-yellow-400 to-orange-400 px-6 py-3 rounded-full shadow-lg">
           <span className="text-white font-bold text-xl">
-            Caught: {caughtPokemon.length} / 150
+            Caught: {caughtPokemon.length} / 1008
           </span>
         </div>
         <button
@@ -328,8 +322,10 @@ export default function CatchPage() {
           >
             <div
               className={`relative w-full h-full ${
-                LEGENDARY_IDS.includes(wild.pokemon.id)
+                wild.pokemon.is_legendary
                   ? "animate-pulse drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]"
+                  : wild.pokemon.is_mythical
+                  ? "animate-pulse drop-shadow-[0_0_10px_rgba(200,100,255,0.8)]"
                   : ""
               }`}
             >
@@ -341,8 +337,12 @@ export default function CatchPage() {
                 draggable={false}
               />
               {/* Legendary glow effect */}
-              {LEGENDARY_IDS.includes(wild.pokemon.id) && (
+              {wild.pokemon.is_legendary && (
                 <div className="absolute inset-0 rounded-full bg-yellow-400/30 animate-ping" />
+              )}
+              {/* Mythical glow effect */}
+              {wild.pokemon.is_mythical && (
+                <div className="absolute inset-0 rounded-full bg-purple-400/30 animate-ping" />
               )}
             </div>
           </div>
@@ -450,9 +450,9 @@ export default function CatchPage() {
                   >
                     <div
                       className={`w-16 h-16 bg-white rounded-xl p-1 shadow-md border-2 ${
-                        LEGENDARY_IDS.includes(poke.id)
+                        poke.is_legendary
                           ? "border-yellow-400 bg-gradient-to-br from-yellow-100 to-orange-100"
-                          : RARE_IDS.includes(poke.id)
+                          : poke.is_mythical
                           ? "border-purple-400 bg-gradient-to-br from-purple-100 to-pink-100"
                           : "border-gray-200"
                       } transition-transform hover:scale-110`}
@@ -479,7 +479,7 @@ export default function CatchPage() {
       {/* Fun tip */}
       <div className="mt-4 text-center">
         <p className="text-gray-500 text-sm">
-          Tip: Legendary Pokemon (with golden glow) are faster and harder to catch!
+          Tip: Legendary Pokemon (golden glow) and Mythical Pokemon (purple glow) are faster and harder to catch!
         </p>
       </div>
 

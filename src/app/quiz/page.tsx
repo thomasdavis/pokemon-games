@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { pokemon, Pokemon } from "@/data/pokemon";
+import { pokemon, Pokemon, allTypes } from "@/data/pokemon";
 
 const typeColors: Record<string, string> = {
   normal: "bg-gray-400",
@@ -46,7 +46,9 @@ const typeEmojis: Record<string, string> = {
   fairy: "✨",
 };
 
-const allTypes = Object.keys(typeColors);
+// Helper to get type color with fallback for any types not in the map
+const getTypeColor = (type: string): string => typeColors[type] || "bg-gray-500";
+const getTypeEmoji = (type: string): string => typeEmojis[type] || "❓";
 
 export default function QuizPage() {
   const [currentPokemon, setCurrentPokemon] = useState<Pokemon | null>(null);
@@ -130,15 +132,16 @@ export default function QuizPage() {
           {/* Options */}
           <div className="grid grid-cols-2 gap-4">
             {options.map((type) => {
-              let buttonStyle = `${typeColors[type]} text-white opacity-90 hover:opacity-100`;
+              const typeColor = getTypeColor(type);
+              let buttonStyle = `${typeColor} text-white opacity-90 hover:opacity-100`;
 
               if (answered) {
                 if (isCorrectAnswer(type)) {
-                  buttonStyle = `${typeColors[type]} text-white ring-4 ring-green-400 scale-105`;
+                  buttonStyle = `${typeColor} text-white ring-4 ring-green-400 scale-105`;
                 } else if (selectedAnswer === type) {
-                  buttonStyle = `${typeColors[type]} text-white opacity-50 ring-4 ring-red-500`;
+                  buttonStyle = `${typeColor} text-white opacity-50 ring-4 ring-red-500`;
                 } else {
-                  buttonStyle = `${typeColors[type]} text-white opacity-40`;
+                  buttonStyle = `${typeColor} text-white opacity-40`;
                 }
               }
 
@@ -149,7 +152,7 @@ export default function QuizPage() {
                   disabled={answered}
                   className={`p-6 rounded-2xl font-bold text-2xl transition-all capitalize flex items-center justify-center gap-3 ${buttonStyle}`}
                 >
-                  <span className="text-3xl">{typeEmojis[type]}</span>
+                  <span className="text-3xl">{getTypeEmoji(type)}</span>
                   {type}
                 </button>
               );
