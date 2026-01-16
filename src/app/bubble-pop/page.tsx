@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { pokemon as allPokemon } from "@/data/pokemon";
+import { playSound } from "@/lib/sounds";
+import { announcePokemon, celebrateWin, announceScore, speak } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
+import { getQuickPersonalizedMessage } from "@/lib/ai";
 
 interface Bubble {
   id: number;
@@ -50,6 +54,9 @@ export default function BubblePopPage() {
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [popEffects, setPopEffects] = useState<PopEffect[]>([]);
   const [difficulty, setDifficulty] = useState(1);
+  const [feedbackMessage, setFeedbackMessage] = useState<{ message: string; emoji: string } | null>(null);
+
+  const { name: playerName } = usePlayer();
 
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const bubbleIdRef = useRef(0);
@@ -72,6 +79,35 @@ export default function BubblePopPage() {
       localStorage.setItem("pokemonBubblePopHighScore", score.toString());
     }
   }, [score, highScore]);
+
+  // Handle game over sounds and speech
+  useEffect(() => {
+    if (gameState === "gameover") {
+      const isHighScore = score >= highScore && score > 0;
+      if (isHighScore) {
+        // High score celebration
+        playSound('win');
+        setTimeout(() => {
+          celebrateWin();
+          setTimeout(() => {
+            speak(`${playerName} scored ${score} points! New high score!`);
+          }, 2000);
+        }, 500);
+      } else if (score >= 50) {
+        // Good score
+        playSound('success');
+        setTimeout(() => {
+          announceScore(score);
+        }, 500);
+      } else {
+        // Encourage player
+        playSound('lose', { volume: 0.5 });
+        setTimeout(() => {
+          speak(`Good try, ${playerName}! You scored ${score} points.`);
+        }, 500);
+      }
+    }
+  }, [gameState, score, highScore, playerName]);
 
   const getRandomPokemon = useCallback(() => {
     const randomIndex = Math.floor(Math.random() * allPokemon.length);
@@ -112,6 +148,12 @@ export default function BubblePopPage() {
   const popBubble = useCallback((bubble: Bubble, e: React.MouseEvent) => {
     e.stopPropagation();
 
+    // Play pop sound
+    playSound('pop');
+
+    // Announce the Pokemon name
+    announcePokemon(bubble.pokemonName);
+
     const newEffect: PopEffect = {
       id: effectIdRef.current++,
       x: bubble.x + bubble.size / 2,
@@ -125,8 +167,19 @@ export default function BubblePopPage() {
     }, 1000);
 
     setBubbles(prev => prev.filter(b => b.id !== bubble.id));
-    setScore(prev => prev + 10);
-  }, []);
+    setScore(prev => {
+      const newScore = prev + 10;
+      // Play coin sound for bonus points at milestones
+      if (newScore % 50 === 0) {
+        playSound('coin');
+        // Show personalized feedback
+        const feedback = getQuickPersonalizedMessage(playerName, 'streak', { streak: newScore / 10 });
+        setFeedbackMessage(feedback);
+        setTimeout(() => setFeedbackMessage(null), 2000);
+      }
+      return newScore;
+    });
+  }, [playerName]);
 
   useEffect(() => {
     if (gameState !== "playing") return;
@@ -154,6 +207,8 @@ export default function BubblePopPage() {
             }
             return newMisses;
           });
+          // Play whoosh sound when bubbles escape
+          playSound('whoosh', { volume: 0.4 });
         }
 
         return updated.filter(b => b.y + b.size >= 0);
@@ -197,7 +252,13 @@ export default function BubblePopPage() {
     if (gameState !== "playing") return;
 
     difficultyTimerRef.current = window.setInterval(() => {
-      setDifficulty(d => d + 1);
+      setDifficulty(d => {
+        // Play level up sound
+        playSound('levelup');
+        const levelUpMessage = getQuickPersonalizedMessage(playerName, 'level_up');
+        speak(levelUpMessage.message, { rate: 1.1 });
+        return d + 1;
+      });
     }, DIFFICULTY_INCREASE_INTERVAL);
 
     return () => {
@@ -205,17 +266,23 @@ export default function BubblePopPage() {
         clearInterval(difficultyTimerRef.current);
       }
     };
-  }, [gameState]);
+  }, [gameState, playerName]);
 
   const startGame = useCallback(() => {
+    // Play start sound and announce
+    playSound('powerup');
+    const startMessage = getQuickPersonalizedMessage(playerName, 'game_start');
+    speak(startMessage.message);
+
     setGameState("playing");
     setScore(0);
     setMisses(0);
     setBubbles([]);
     setPopEffects([]);
     setDifficulty(1);
+    setFeedbackMessage(null);
     lastTimeRef.current = 0;
-  }, []);
+  }, [playerName]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-400 to-sky-500 overflow-hidden relative">
@@ -228,7 +295,7 @@ export default function BubblePopPage() {
       {/* Header */}
       <div className="relative z-20 pt-4 pb-2">
         <h1 className="text-4xl md:text-5xl font-bold text-center text-white drop-shadow-lg mb-2">
-          🫧 Pokemon Bubble Pop! 🫧
+          🫧 {playerName}&apos;s Bubble Pop! 🫧
         </h1>
 
         {gameState === "playing" && (
@@ -310,6 +377,17 @@ export default function BubblePopPage() {
             </div>
           </div>
         ))}
+
+        {/* Feedback Message */}
+        {feedbackMessage && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
+            <div className="bg-gradient-to-r from-yellow-400 to-orange-400 px-8 py-4 rounded-2xl shadow-2xl animate-bounce">
+              <span className="text-3xl font-bold text-white drop-shadow-lg">
+                {feedbackMessage.emoji} {feedbackMessage.message} {feedbackMessage.emoji}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Start Screen */}
@@ -326,7 +404,7 @@ export default function BubblePopPage() {
               />
             </div>
             <h2 className="text-3xl font-bold text-purple-600 mb-4">
-              Pokemon Bubble Pop!
+              Welcome, {playerName}!
             </h2>
             <p className="text-lg text-gray-600 mb-2">
               Pop the bubbles before they float away!
@@ -367,7 +445,7 @@ export default function BubblePopPage() {
               />
             </div>
             <h2 className="text-3xl font-bold text-red-500 mb-2">
-              Game Over!
+              Game Over, {playerName}!
             </h2>
             <p className="text-2xl text-gray-700 mb-2">
               You caught <span className="font-bold text-purple-600">{Math.floor(score / 10)}</span> Pokemon!

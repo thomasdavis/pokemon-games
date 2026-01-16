@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { pokemon, Pokemon, getHeightInMeters } from "@/data/pokemon";
+import { playSound } from "@/lib/sounds";
+import { speak, celebrateWin } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
+import { getQuickPersonalizedMessage } from "@/lib/ai";
 
 // Threshold: Pokemon >= 1.2m are BIG, < 1.2m are SMALL
 const SIZE_THRESHOLD = 1.2;
@@ -36,6 +40,7 @@ function getHeightComparison(meters: number): string {
 }
 
 export default function SizeSortPage() {
+  const { name: playerName } = usePlayer();
   const [currentPokemon, setCurrentPokemon] = useState<Pokemon | null>(null);
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -43,6 +48,7 @@ export default function SizeSortPage() {
   const [bestStreak, setBestStreak] = useState(0);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationMessage, setCelebrationMessage] = useState("");
+  const [feedbackMessage, setFeedbackMessage] = useState<{ message: string; emoji: string } | null>(null);
 
   const getRandomPokemon = useCallback(() => {
     const randomIndex = Math.floor(Math.random() * pokemon.length);
@@ -54,6 +60,7 @@ export default function SizeSortPage() {
     setAnswered(false);
     setIsCorrect(false);
     setShowCelebration(false);
+    setFeedbackMessage(null);
   }, [getRandomPokemon]);
 
   useEffect(() => {
@@ -63,6 +70,9 @@ export default function SizeSortPage() {
   const handleAnswer = (answer: "big" | "small") => {
     if (answered || !currentPokemon) return;
 
+    // Play click sound when selecting an answer
+    playSound("click");
+
     const height = getHeightInMeters(currentPokemon);
     const actualSize = height >= SIZE_THRESHOLD ? "big" : "small";
     const correct = answer === actualSize;
@@ -71,6 +81,14 @@ export default function SizeSortPage() {
     setIsCorrect(correct);
 
     if (correct) {
+      // Play success sound and speak "Correct!"
+      playSound("success");
+      speak("Correct!");
+
+      // Get personalized feedback message
+      const feedback = getQuickPersonalizedMessage(playerName, "correct_answer");
+      setFeedbackMessage(feedback);
+
       const newStreak = streak + 1;
       setStreak(newStreak);
       if (newStreak > bestStreak) {
@@ -83,8 +101,19 @@ export default function SizeSortPage() {
         setCelebrationMessage(
           celebrationMessages[Math.floor(Math.random() * celebrationMessages.length)]
         );
+        // Play win sound and celebrate with speech
+        playSound("win");
+        celebrateWin();
       }
     } else {
+      // Play error sound and speak "Try again!"
+      playSound("error");
+      speak("Try again!");
+
+      // Get personalized feedback message for wrong answer
+      const feedback = getQuickPersonalizedMessage(playerName, "wrong_answer");
+      setFeedbackMessage(feedback);
+
       setStreak(0);
     }
   };
@@ -94,10 +123,13 @@ export default function SizeSortPage() {
 
   return (
     <div className="py-6 px-4 min-h-screen">
-      {/* Title */}
-      <h1 className="text-4xl md:text-5xl font-bold text-center text-purple-600 mb-4">
+      {/* Title and Player Name */}
+      <h1 className="text-4xl md:text-5xl font-bold text-center text-purple-600 mb-2">
         Big or Small?
       </h1>
+      <p className="text-center text-xl text-purple-400 mb-4">
+        Playing as <span className="font-bold text-purple-600">{playerName}</span>
+      </p>
 
       {/* Streak Counter */}
       <div className="flex justify-center gap-4 mb-6">
@@ -208,7 +240,7 @@ export default function SizeSortPage() {
           {answered && (
             <div className="text-center">
               <div
-                className={`text-3xl font-bold mb-4 ${
+                className={`text-3xl font-bold mb-2 ${
                   isCorrect ? "text-green-600" : "text-red-500"
                 }`}
               >
@@ -222,6 +254,13 @@ export default function SizeSortPage() {
                   </>
                 )}
               </div>
+
+              {/* Personalized Feedback Message */}
+              {feedbackMessage && (
+                <div className={`text-2xl mb-4 ${isCorrect ? "text-green-500" : "text-orange-500"}`}>
+                  {feedbackMessage.emoji} {feedbackMessage.message}
+                </div>
+              )}
 
               {/* Height Info */}
               <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl p-4 mb-6">

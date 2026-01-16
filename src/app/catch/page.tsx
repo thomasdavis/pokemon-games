@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { pokemon, Pokemon } from "@/data/pokemon";
+import { playSound } from "@/lib/sounds";
+import { announcePokemon, speak, celebrateWin } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
+import { getQuickPersonalizedMessage } from "@/lib/ai";
 
 interface WildPokemon {
   id: string;
@@ -36,7 +40,17 @@ interface CatchAnimation {
   x: number;
   y: number;
   pokemonImage: string;
+  pokemonName: string;
+  isLegendaryOrMythical: boolean;
   stage: "pokeball" | "shake" | "caught";
+}
+
+interface CatchMessage {
+  id: string;
+  message: string;
+  emoji: string;
+  x: number;
+  y: number;
 }
 
 // Get speed multiplier based on Pokemon rarity
@@ -76,9 +90,11 @@ export default function CatchPage() {
   const [sparkles, setSparkles] = useState<Sparkle[]>([]);
   const [confetti, setConfetti] = useState<Confetti[]>([]);
   const [catchAnimations, setCatchAnimations] = useState<CatchAnimation[]>([]);
+  const [catchMessages, setCatchMessages] = useState<CatchMessage[]>([]);
   const [gameArea, setGameArea] = useState({ width: 800, height: 500 });
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
+  const { name: playerName } = usePlayer();
 
   // Initialize game area size
   useEffect(() => {
@@ -192,6 +208,14 @@ export default function CatchPage() {
   // Handle catching a Pokemon
   const handleCatch = useCallback(
     (wild: WildPokemon) => {
+      const isLegendaryOrMythical = wild.pokemon.is_legendary || wild.pokemon.is_mythical;
+
+      // Play whoosh sound when throwing pokeball
+      playSound('whoosh');
+
+      // Announce the Pokemon when clicking
+      announcePokemon(wild.pokemon.name);
+
       // Remove from wild Pokemon
       setWildPokemon((prev) => prev.filter((p) => p.id !== wild.id));
 
@@ -204,6 +228,8 @@ export default function CatchPage() {
           x: wild.x,
           y: wild.y,
           pokemonImage: wild.pokemon.image,
+          pokemonName: wild.pokemon.name,
+          isLegendaryOrMythical,
           stage: "pokeball",
         },
       ]);
@@ -221,6 +247,36 @@ export default function CatchPage() {
         );
         createSparkles(wild.x + wild.size / 2, wild.y + wild.size / 2);
         createConfetti(wild.x + wild.size / 2, wild.y + wild.size / 2);
+
+        // Play catch sound and speech based on Pokemon type
+        if (isLegendaryOrMythical) {
+          playSound('success');
+          celebrateWin();
+        } else {
+          playSound('catch');
+          speak("Got it!");
+        }
+
+        // Show personalized catch message
+        const personalizedMsg = getQuickPersonalizedMessage(playerName, 'caught_pokemon', {
+          pokemonName: wild.pokemon.name,
+        });
+        const msgId = `msg-${Date.now()}`;
+        setCatchMessages((prev) => [
+          ...prev,
+          {
+            id: msgId,
+            message: personalizedMsg.message,
+            emoji: personalizedMsg.emoji,
+            x: wild.x + wild.size / 2,
+            y: wild.y,
+          },
+        ]);
+
+        // Remove message after animation
+        setTimeout(() => {
+          setCatchMessages((prev) => prev.filter((m) => m.id !== msgId));
+        }, 2000);
       }, 1000);
 
       setTimeout(() => {
@@ -239,7 +295,7 @@ export default function CatchPage() {
         ]);
       }, 1500);
     },
-    [createSparkles, createConfetti, gameArea]
+    [createSparkles, createConfetti, gameArea, playerName]
   );
 
   // Reset game
@@ -248,11 +304,14 @@ export default function CatchPage() {
     setSparkles([]);
     setConfetti([]);
     setCatchAnimations([]);
+    setCatchMessages([]);
     const newPokemon: WildPokemon[] = [];
     for (let i = 0; i < 8; i++) {
       newPokemon.push(createWildPokemon(gameArea.width, gameArea.height));
     }
     setWildPokemon(newPokemon);
+    // Play release sound when resetting
+    playSound('release');
   }, [gameArea]);
 
   return (
@@ -262,7 +321,9 @@ export default function CatchPage() {
         <h1 className="text-4xl font-bold bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 bg-clip-text text-transparent mb-2">
           Pokemon Catch!
         </h1>
-        <p className="text-lg text-gray-600">Click on Pokemon to catch them!</p>
+        <p className="text-lg text-gray-600">
+          Go {playerName}! Click on Pokemon to catch them!
+        </p>
       </div>
 
       {/* Stats Bar */}
@@ -416,6 +477,25 @@ export default function CatchPage() {
               transform: `rotate(${c.rotation}deg)`,
             }}
           />
+        ))}
+
+        {/* Catch Messages */}
+        {catchMessages.map((msg) => (
+          <div
+            key={msg.id}
+            className="absolute pointer-events-none animate-bounce z-20"
+            style={{
+              left: msg.x,
+              top: msg.y - 40,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <div className="bg-white/95 px-4 py-2 rounded-full shadow-lg border-2 border-yellow-400 whitespace-nowrap">
+              <span className="text-lg font-bold text-gray-800">
+                {msg.emoji} {msg.message}
+              </span>
+            </div>
+          </div>
         ))}
 
         {/* Instructions overlay for empty state */}

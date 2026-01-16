@@ -4,25 +4,40 @@
  * Uses Vercel AI SDK with OpenAI to generate structured data for games.
  * Requires OPENAI_API_KEY in environment variables.
  *
- * @example
- * // Generate a fun fact about a Pokemon
- * const fact = await generatePokemonFact("Pikachu", "electric");
+ * This package exposes both RAW APIs for sophisticated implementations
+ * and helper methods for quick implementations.
  *
  * @example
- * // Generate quiz questions
- * const questions = await generateQuizQuestions("Charizard");
+ * // RAW API - Write your own prompts and schemas
+ * import { generateObject, generateText, openai, z } from '@/lib/ai';
+ *
+ * const { object } = await generateObject({
+ *   model: openai('gpt-4o-mini'),
+ *   schema: z.object({ story: z.string(), choices: z.array(z.string()) }),
+ *   prompt: `Create an adventure for ${playerName} with ${pokemon.name}...`,
+ * });
  *
  * @example
- * // Generate encouraging message for kids
- * const message = await generateEncouragement("winning");
+ * // Helper methods for quick implementations
+ * const fact = await generatePokemonFact("Pikachu", ["electric"]);
  */
 
+// ============ RAW EXPORTS - Use these for creative, sophisticated implementations ============
+// Re-export core AI SDK functions for direct use
+export { generateObject, generateText } from 'ai';
+export { openai } from '@ai-sdk/openai';
+export { z } from 'zod';
+
+// Internal imports for helper methods
 import { generateObject, generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 
 // Default model for all generations
 const DEFAULT_MODEL = openai('gpt-4o-mini');
+
+// Export the default model for convenience
+export const defaultModel = DEFAULT_MODEL;
 
 /**
  * Schema for Pokemon fun facts

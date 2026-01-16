@@ -4,21 +4,43 @@
  * Uses the browser's Web Speech API to add voice to games.
  * Works in all modern browsers without any external dependencies.
  *
- * @example
- * // Speak a message
- * speak("It's Pikachu!");
+ * This package exposes both RAW APIs for sophisticated implementations
+ * and helper methods for quick implementations.
  *
  * @example
- * // Speak with options
- * speak("Super effective!", { rate: 1.2, pitch: 1.1 });
+ * // RAW API - Full control over speech synthesis
+ * import { speak, SpeechOptions, getVoices, loadVoices } from '@/lib/speech';
+ *
+ * // Dynamic Pokemon announcement based on size/rarity
+ * speak(`A wild ${pokemon.name} appeared!`, {
+ *   rate: pokemon.is_legendary ? 0.8 : 1.0,  // Dramatic for legendaries
+ *   pitch: pokemon.height > 20 ? 0.7 : 1.2,   // Deep for large Pokemon
+ *   volume: 1.0,
+ *   onEnd: () => playNextDialogue(),
+ * });
  *
  * @example
- * // Use the speech hook in React
- * const { speak, stop, isSpeaking } = useSpeech();
+ * // Helper methods for quick implementations
+ * announcePokemon('Pikachu');  // "It's Pikachu!"
+ * sayCorrect();                 // "Correct! Great job!"
  */
+
+// ============ RAW EXPORTS - Use these for creative, sophisticated implementations ============
 
 // Check if speech synthesis is available
 export const isSpeechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+// Direct access to browser's speechSynthesis API
+export const getSpeechSynthesis = (): SpeechSynthesis | null => {
+  if (typeof window === 'undefined') return null;
+  return window.speechSynthesis;
+};
+
+// Create a raw utterance for full control
+export const createUtterance = (text: string): SpeechSynthesisUtterance | null => {
+  if (typeof window === 'undefined') return null;
+  return new SpeechSynthesisUtterance(text);
+};
 
 // Speech options interface
 export interface SpeechOptions {

@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { pokemon, Pokemon } from "@/data/pokemon";
+import { click, success, error, win, whoosh } from "@/lib/sounds";
+import { announcePokemon, sayCorrect, sayWrong, celebrateWin } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
+import { getQuickPersonalizedMessage } from "@/lib/ai";
 
 type LetterDifficulty = "easy" | "medium" | "hard";
 type ImageDifficulty = "easy" | "medium" | "hard";
@@ -128,6 +132,7 @@ function ScrambledImage({ src, tiles, tileOrder, revealed, size }: ScrambledImag
 }
 
 export default function WhosThatPokemonPage() {
+  const { name: playerName } = usePlayer();
   const [letterDifficulty, setLetterDifficulty] = useState<LetterDifficulty>("easy");
   const [imageDifficulty, setImageDifficulty] = useState<ImageDifficulty>("easy");
   const [currentPokemon, setCurrentPokemon] = useState<Pokemon | null>(null);
@@ -139,6 +144,7 @@ export default function WhosThatPokemonPage() {
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [maskedNames, setMaskedNames] = useState<Map<number, string>>(new Map());
   const [tileOrder, setTileOrder] = useState<number[]>([0]);
+  const [personalizedMessage, setPersonalizedMessage] = useState<{ message: string; emoji: string } | null>(null);
 
   const generateRound = useCallback(() => {
     const shuffled = [...pokemon].sort(() => Math.random() - 0.5);
@@ -171,7 +177,13 @@ export default function WhosThatPokemonPage() {
   const handleGuess = (guess: Pokemon) => {
     if (revealed) return;
 
+    // Play click sound when selecting an answer
+    click();
+
     setRevealed(true);
+
+    // Play whoosh sound when revealing the Pokemon
+    whoosh();
 
     const letterMultiplier = letterDifficulty === "hard" ? 3 : letterDifficulty === "medium" ? 2 : 1;
     const imageMultiplier = imageDifficulty === "hard" ? 3 : imageDifficulty === "medium" ? 2 : 1;
@@ -179,17 +191,46 @@ export default function WhosThatPokemonPage() {
 
     if (guess.id === currentPokemon?.id) {
       setIsCorrect(true);
+      const newStreak = streak + 1;
       setScore((s) => s + (10 + streak * 5) * totalMultiplier);
-      setStreak((s) => s + 1);
+      setStreak(newStreak);
       setMessage(`Yes! It's ${currentPokemon.name}!`);
+
+      // Play success sound and speech
+      success();
+      sayCorrect();
+      announcePokemon(currentPokemon.name);
+
+      // Check for streak achievements
+      if (newStreak >= 3 && newStreak % 3 === 0) {
+        // Play win sound and celebrate for streak milestones
+        setTimeout(() => {
+          win();
+          celebrateWin();
+        }, 500);
+        const streakMsg = getQuickPersonalizedMessage(playerName, 'streak', { streak: newStreak });
+        setPersonalizedMessage(streakMsg);
+      } else {
+        const correctMsg = getQuickPersonalizedMessage(playerName, 'correct_answer');
+        setPersonalizedMessage(correctMsg);
+      }
     } else {
       setIsCorrect(false);
       setStreak(0);
       setMessage(`Nope! It's ${currentPokemon?.name}!`);
+
+      // Play error sound and speech
+      error();
+      sayWrong();
+      announcePokemon(currentPokemon?.name || '');
+
+      const wrongMsg = getQuickPersonalizedMessage(playerName, 'wrong_answer');
+      setPersonalizedMessage(wrongMsg);
     }
   };
 
   const handleNext = () => {
+    setPersonalizedMessage(null);
     generateRound();
   };
 
@@ -205,8 +246,15 @@ export default function WhosThatPokemonPage() {
 
   return (
     <div className="py-8">
+      {/* Player Name Display */}
+      <div className="text-center mb-4">
+        <span className="bg-yellow-100 px-4 py-2 rounded-full text-lg font-semibold text-yellow-800 shadow">
+          Player: {playerName}
+        </span>
+      </div>
+
       <h1 className="text-4xl font-bold text-center text-green-600 mb-6">
-        ❓ Who&apos;s That Pokemon?
+        Who&apos;s That Pokemon?
       </h1>
 
       {/* Settings Panel */}
@@ -294,11 +342,20 @@ export default function WhosThatPokemonPage() {
           {/* Message */}
           {message && (
             <div
-              className={`text-center text-3xl font-bold mb-6 ${
+              className={`text-center text-3xl font-bold mb-4 ${
                 isCorrect ? "text-green-600" : "text-red-500"
               } animate-pop`}
             >
-              {isCorrect ? "🎉 " : "😅 "}{message}
+              {message}
+            </div>
+          )}
+
+          {/* Personalized Message */}
+          {personalizedMessage && (
+            <div className="text-center text-xl mb-6 animate-bounce">
+              <span className="bg-gradient-to-r from-purple-100 to-pink-100 px-6 py-2 rounded-full shadow-md">
+                {personalizedMessage.emoji} {personalizedMessage.message}
+              </span>
             </div>
           )}
 

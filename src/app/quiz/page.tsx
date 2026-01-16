@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { pokemon, Pokemon, allTypes } from "@/data/pokemon";
+import { playSound } from "@/lib/sounds";
+import { sayCorrect, sayWrong, celebrateWin, announceScore } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
+import { getQuickPersonalizedMessage } from "@/lib/ai";
 
 const typeColors: Record<string, string> = {
   normal: "bg-gray-400",
@@ -57,6 +61,11 @@ export default function QuizPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [score, setScore] = useState(0);
   const [questionsAnswered, setQuestionsAnswered] = useState(0);
+  const [feedbackMessage, setFeedbackMessage] = useState<{ message: string; emoji: string } | null>(null);
+  const [quizComplete, setQuizComplete] = useState(false);
+
+  const { name: playerName } = usePlayer();
+  const QUIZ_LENGTH = 10;
 
   const generateQuestion = useCallback(() => {
     const randomPokemon = pokemon[Math.floor(Math.random() * pokemon.length)];
@@ -82,30 +91,129 @@ export default function QuizPage() {
   const handleAnswer = (type: string) => {
     if (answered) return;
 
+    // Play click sound when selecting answer
+    playSound('click');
+
     setSelectedAnswer(type);
     setAnswered(true);
-    setQuestionsAnswered((q) => q + 1);
+    const newQuestionsAnswered = questionsAnswered + 1;
+    setQuestionsAnswered(newQuestionsAnswered);
 
-    if (currentPokemon?.types.includes(type)) {
-      setScore((s) => s + 1);
+    const isCorrect = currentPokemon?.types.includes(type);
+    let newScore = score;
+
+    if (isCorrect) {
+      newScore = score + 1;
+      setScore(newScore);
+      // Play success sound and say correct
+      playSound('success');
+      sayCorrect();
+      // Get personalized message for correct answer
+      const msg = getQuickPersonalizedMessage(playerName, 'correct_answer');
+      setFeedbackMessage(msg);
+    } else {
+      // Play error sound and say wrong
+      playSound('error');
+      sayWrong();
+      // Get personalized message for wrong answer
+      const msg = getQuickPersonalizedMessage(playerName, 'wrong_answer');
+      setFeedbackMessage(msg);
+    }
+
+    // Check if quiz is complete
+    if (newQuestionsAnswered >= QUIZ_LENGTH) {
+      setQuizComplete(true);
+      const percentage = Math.round((newScore / QUIZ_LENGTH) * 100);
+      // Play win sound and celebrate if good score (>= 70%)
+      if (percentage >= 70) {
+        playSound('win');
+        celebrateWin();
+      }
+      // Announce final score
+      setTimeout(() => {
+        announceScore(newScore);
+      }, 1500);
+      // Get personalized completion message
+      const completionMsg = getQuickPersonalizedMessage(playerName, 'completed_quiz', { score: newScore });
+      setFeedbackMessage(completionMsg);
     }
   };
 
   const handleNext = () => {
+    setFeedbackMessage(null);
+    generateQuestion();
+  };
+
+  const restartQuiz = () => {
+    setScore(0);
+    setQuestionsAnswered(0);
+    setQuizComplete(false);
+    setFeedbackMessage(null);
     generateQuestion();
   };
 
   const isCorrectAnswer = (type: string) => currentPokemon?.types.includes(type);
 
+  // Quiz complete screen
+  if (quizComplete) {
+    const percentage = Math.round((score / QUIZ_LENGTH) * 100);
+    return (
+      <div className="py-8">
+        <h1 className="text-4xl font-bold text-center text-orange-600 mb-4">
+          Quiz Complete!
+        </h1>
+
+        <div className="max-w-2xl mx-auto bg-white rounded-3xl p-8 shadow-xl text-center">
+          <div className="text-6xl mb-4">
+            {percentage >= 70 ? "🏆" : percentage >= 50 ? "⭐" : "💪"}
+          </div>
+          <h2 className="text-3xl font-bold mb-2">
+            Great job, {playerName}!
+          </h2>
+          <p className="text-2xl text-gray-600 mb-4">
+            You scored <span className="font-bold text-green-600">{score}</span> out of {QUIZ_LENGTH}
+          </p>
+          <p className="text-xl text-gray-500 mb-6">
+            {percentage}% correct
+          </p>
+
+          {feedbackMessage && (
+            <div className="bg-yellow-100 rounded-2xl p-4 mb-6">
+              <span className="text-2xl mr-2">{feedbackMessage.emoji}</span>
+              <span className="text-xl font-medium">{feedbackMessage.message}</span>
+            </div>
+          )}
+
+          <button
+            onClick={restartQuiz}
+            className="bg-orange-500 text-white px-12 py-4 rounded-full font-bold text-2xl hover:bg-orange-600 transition-all hover:scale-105 shadow-lg"
+          >
+            Play Again!
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="py-8">
       <h1 className="text-4xl font-bold text-center text-orange-600 mb-4">
-        🔥 Type Quiz
+        Type Quiz
       </h1>
+
+      {/* Player name display */}
+      <div className="text-center mb-4">
+        <span className="bg-yellow-100 px-4 py-2 rounded-full text-lg">
+          Player: <span className="font-bold">{playerName}</span>
+        </span>
+      </div>
 
       <div className="flex justify-center gap-8 text-xl mb-8">
         <span className="bg-white px-6 py-2 rounded-full shadow">
           Score: <span className="font-bold text-green-600">{score}</span> / {questionsAnswered}
+        </span>
+        <span className="bg-white px-6 py-2 rounded-full shadow">
+          Question {questionsAnswered + (answered ? 0 : 1)} / {QUIZ_LENGTH}
         </span>
         {questionsAnswered > 0 && (
           <span className="bg-white px-6 py-2 rounded-full shadow">
@@ -162,23 +270,32 @@ export default function QuizPage() {
           {/* Result Message */}
           {answered && (
             <div className="text-center mt-8">
+              {/* Personalized feedback message */}
+              {feedbackMessage && (
+                <div className="bg-yellow-100 rounded-2xl p-4 mb-4 inline-block">
+                  <span className="text-2xl mr-2">{feedbackMessage.emoji}</span>
+                  <span className="text-xl font-medium">{feedbackMessage.message}</span>
+                </div>
+              )}
               <div
                 className={`text-2xl font-bold mb-4 ${
                   isCorrectAnswer(selectedAnswer!) ? "text-green-600" : "text-red-500"
                 }`}
               >
                 {isCorrectAnswer(selectedAnswer!) ? (
-                  <>🎉 Correct! {currentPokemon.name} is a {currentPokemon.types.join("/")} type!</>
+                  <>Correct! {currentPokemon.name} is a {currentPokemon.types.join("/")} type!</>
                 ) : (
-                  <>😅 Not quite! {currentPokemon.name} is actually a {currentPokemon.types.join("/")} type!</>
+                  <>Not quite! {currentPokemon.name} is actually a {currentPokemon.types.join("/")} type!</>
                 )}
               </div>
-              <button
-                onClick={handleNext}
-                className="bg-orange-500 text-white px-12 py-4 rounded-full font-bold text-2xl hover:bg-orange-600 transition-all hover:scale-105 shadow-lg"
-              >
-                Next Question! →
-              </button>
+              {questionsAnswered < QUIZ_LENGTH && (
+                <button
+                  onClick={handleNext}
+                  className="bg-orange-500 text-white px-12 py-4 rounded-full font-bold text-2xl hover:bg-orange-600 transition-all hover:scale-105 shadow-lg"
+                >
+                  Next Question!
+                </button>
+              )}
             </div>
           )}
         </div>

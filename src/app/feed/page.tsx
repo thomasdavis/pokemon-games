@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { pokemon } from "@/data/pokemon";
+import { playSound } from "@/lib/sounds";
+import { speak, announcePokemon, celebrateWin } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
+import { getQuickPersonalizedMessage } from "@/lib/ai";
 
 interface Berry {
   id: number;
@@ -36,6 +40,7 @@ const BERRY_TYPES = [
 const BERRIES_NEEDED = 4;
 
 export default function FeedPage() {
+  const { name: playerName } = usePlayer();
   const [currentPokemon, setCurrentPokemon] = useState<typeof pokemon[0] | null>(null);
   const [happiness, setHappiness] = useState(0);
   const [berries, setBerries] = useState<Berry[]>([]);
@@ -45,6 +50,7 @@ export default function FeedPage() {
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
   const [sparkles, setSparkles] = useState<Sparkle[]>([]);
+  const [personalizedMessage, setPersonalizedMessage] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pokemonRef = useRef<HTMLDivElement>(null);
 
@@ -101,12 +107,17 @@ export default function FeedPage() {
   }, []);
 
   const startNewRound = useCallback(() => {
-    setCurrentPokemon(getRandomPokemon());
+    const newPokemon = getRandomPokemon();
+    setCurrentPokemon(newPokemon);
     setHappiness(0);
     setBerries(generateBerryPositions());
     setIsCelebrating(false);
     setFloatingHearts([]);
     setSparkles([]);
+    setPersonalizedMessage(null);
+    // Announce the new Pokemon
+    announcePokemon(newPokemon.name);
+    playSound('ding');
   }, [getRandomPokemon, generateBerryPositions]);
 
   useEffect(() => {
@@ -121,8 +132,20 @@ export default function FeedPage() {
     }, 1000);
   };
 
-  const triggerCelebration = () => {
+  const triggerCelebration = useCallback(() => {
     setIsCelebrating(true);
+    // Play celebration sounds and speech
+    playSound('success');
+    celebrateWin();
+
+    // Get personalized message for fully fed Pokemon
+    if (currentPokemon) {
+      const { message, emoji } = getQuickPersonalizedMessage(playerName, 'fed_pokemon', {
+        pokemonName: currentPokemon.name,
+      });
+      setPersonalizedMessage(`${emoji} ${message}`);
+    }
+
     // Create sparkles around the Pokemon
     const newSparkles: Sparkle[] = [];
     for (let i = 0; i < 20; i++) {
@@ -139,7 +162,7 @@ export default function FeedPage() {
       setHappyPokemonCount((prev) => prev + 1);
       startNewRound();
     }, 2500);
-  };
+  }, [currentPokemon, playerName, startNewRound]);
 
   const handleMouseDown = (e: React.MouseEvent, berry: Berry) => {
     e.preventDefault();
@@ -176,6 +199,10 @@ export default function FeedPage() {
           setHappiness(newHappiness);
           setBerries((prev) => prev.filter((b) => b.id !== draggedBerry.id));
 
+          // Play feeding sound and speak
+          playSound('pop');
+          speak("Yummy!");
+
           // Add floating heart at drop position
           addFloatingHeart(
             ((dropX - (containerRef.current?.getBoundingClientRect().left || 0)) /
@@ -194,7 +221,7 @@ export default function FeedPage() {
       }
       setDraggedBerry(null);
     },
-    [draggedBerry, happiness]
+    [draggedBerry, happiness, triggerCelebration]
   );
 
   useEffect(() => {
@@ -236,13 +263,13 @@ export default function FeedPage() {
   return (
     <div className="py-4 select-none">
       <h1 className="text-4xl font-bold text-center text-orange-500 mb-2">
-        Feed the Pokemon!
+        {playerName}'s Feeding Time!
       </h1>
 
       {/* Score Display */}
       <div className="text-center mb-4">
         <div className="inline-block bg-gradient-to-r from-yellow-400 to-orange-400 text-white px-6 py-2 rounded-full text-xl font-bold shadow-lg">
-          Happy Pokemon: {happyPokemonCount}
+          {playerName}'s Happy Pokemon: {happyPokemonCount}
         </div>
       </div>
 
@@ -420,6 +447,11 @@ export default function FeedPage() {
               <div className="text-4xl mt-2">
                 🎉 🎊 ⭐ 🎉 🎊
               </div>
+              {personalizedMessage && (
+                <div className="text-2xl mt-4 bg-white/90 px-6 py-2 rounded-full shadow-lg text-gray-800 font-bold">
+                  {personalizedMessage}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -428,7 +460,7 @@ export default function FeedPage() {
         {happiness === 0 && !isCelebrating && (
           <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-white/90 px-6 py-3 rounded-2xl shadow-lg">
             <p className="text-lg font-bold text-gray-700 text-center">
-              Drag berries to feed {currentPokemon.name}!
+              {playerName}, drag berries to feed {currentPokemon.name}!
             </p>
           </div>
         )}

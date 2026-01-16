@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { pokemon } from "@/data/pokemon";
+import { playSound } from "@/lib/sounds";
+import { speak, celebrateWin, announceScore } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
+import { getQuickPersonalizedMessage } from "@/lib/ai";
 
 interface Card {
   id: number;
@@ -26,6 +30,10 @@ export default function MemoryPage() {
   const [moves, setMoves] = useState(0);
   const [gameWon, setGameWon] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [matchMessage, setMatchMessage] = useState<{ message: string; emoji: string } | null>(null);
+  const consecutiveMatches = useRef(0);
+
+  const { name: playerName } = usePlayer();
 
   const initializeGame = useCallback(() => {
     const numPairs = DIFFICULTY_SETTINGS[difficulty].pairs;
@@ -42,6 +50,8 @@ export default function MemoryPage() {
     setMoves(0);
     setGameWon(false);
     setIsChecking(false);
+    setMatchMessage(null);
+    consecutiveMatches.current = 0;
   }, [difficulty]);
 
   useEffect(() => {
@@ -53,6 +63,9 @@ export default function MemoryPage() {
 
     const card = cards.find((c) => c.id === cardId);
     if (!card || card.isFlipped || card.isMatched) return;
+
+    // Play card flip sound
+    playSound('card_flip', { volume: 0.5 });
 
     const newCards = cards.map((c) =>
       c.id === cardId ? { ...c, isFlipped: true } : c
@@ -72,6 +85,23 @@ export default function MemoryPage() {
 
       if (firstCard.pokemonId === secondCard.pokemonId) {
         // Match found!
+        consecutiveMatches.current += 1;
+
+        // Play combo sound for consecutive matches, otherwise regular match sound
+        if (consecutiveMatches.current > 1) {
+          playSound('combo');
+        } else {
+          playSound('match');
+        }
+
+        // Speak and show personalized message
+        speak("Match!");
+        const personalizedMsg = getQuickPersonalizedMessage(playerName, 'found_match');
+        setMatchMessage(personalizedMsg);
+
+        // Clear message after a delay
+        setTimeout(() => setMatchMessage(null), 2000);
+
         setTimeout(() => {
           setCards((prev) =>
             prev.map((c) =>
@@ -87,10 +117,18 @@ export default function MemoryPage() {
           );
           if (allMatched) {
             setGameWon(true);
+            // Play win sound and celebrate
+            playSound('win');
+            celebrateWin();
+            // Announce the final score
+            setTimeout(() => {
+              announceScore(moves + 1); // +1 because moves state hasn't updated yet
+            }, 2000);
           }
         }, 500);
       } else {
-        // No match - flip back
+        // No match - flip back, reset consecutive matches
+        consecutiveMatches.current = 0;
         setTimeout(() => {
           setCards((prev) =>
             prev.map((c) =>
@@ -109,8 +147,22 @@ export default function MemoryPage() {
   return (
     <div className="py-8">
       <h1 className="text-4xl font-bold text-center text-purple-600 mb-4">
-        🎴 Memory Match
+        Memory Match
       </h1>
+
+      {/* Player greeting */}
+      <p className="text-center text-lg text-gray-600 mb-4">
+        Good luck, <span className="font-bold text-purple-600">{playerName}</span>!
+      </p>
+
+      {/* Match message popup */}
+      {matchMessage && (
+        <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+          <div className="bg-yellow-400 text-gray-800 px-6 py-3 rounded-full shadow-lg font-bold text-xl">
+            {matchMessage.emoji} {matchMessage.message}
+          </div>
+        </div>
+      )}
 
       <div className="text-center mb-6 space-y-4">
         <div className="flex justify-center gap-4 flex-wrap">
@@ -184,10 +236,10 @@ export default function MemoryPage() {
           <div className="bg-white rounded-3xl p-8 text-center max-w-md w-full shadow-2xl">
             <div className="text-6xl mb-4">🎉</div>
             <h2 className="text-3xl font-bold text-purple-600 mb-2">
-              You Win!
+              {playerName} Wins!
             </h2>
             <p className="text-xl text-gray-600 mb-6">
-              You found all matches in <span className="font-bold">{moves}</span> moves!
+              Amazing job, {playerName}! You found all matches in <span className="font-bold">{moves}</span> moves!
             </p>
             <button
               onClick={initializeGame}

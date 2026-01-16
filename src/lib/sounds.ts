@@ -1,22 +1,34 @@
 /**
  * Sound Effects Package
  *
- * Provides easy-to-use sound effects for games.
- * Uses the Web Audio API for low-latency playback.
+ * Provides sound effects for games using the Web Audio API.
+ *
+ * This package exposes both RAW APIs for sophisticated implementations
+ * and helper methods for quick implementations.
  *
  * @example
- * // Play a sound effect
- * playSound('success');
+ * // RAW API - Full control over sound playback
+ * import { playSound, stopSound, setGlobalVolume, SoundEffect } from '@/lib/sounds';
+ *
+ * // Progressive streak sounds that get faster and louder
+ * const playStreakSound = (streak: number) => {
+ *   playSound('combo', {
+ *     rate: 1 + (streak * 0.1),
+ *     volume: Math.min(1, 0.5 + (streak * 0.1)),
+ *   });
+ * };
+ *
+ * // Layered legendary encounter
+ * playSound('whoosh', { volume: 0.3 });
+ * setTimeout(() => playSound('powerup', { rate: 0.8 }), 200);
  *
  * @example
- * // Play with options
- * playSound('pop', { volume: 0.5 });
- *
- * @example
- * // Use the React hook
- * const { play, setVolume } = useSounds();
- * play('click');
+ * // Helper methods for quick implementations
+ * success();  // Play success sound
+ * coin();     // Play coin sound
  */
+
+// ============ RAW EXPORTS - Use these for creative, sophisticated implementations ============
 
 // Sound types available
 export type SoundEffect =
@@ -68,6 +80,17 @@ const SOUND_PATHS: Record<SoundEffect, string> = {
   streak: '/sounds/streak.mp3',
 };
 
+// ============ TYPE EXPORTS ============
+
+export interface PlaySoundOptions {
+  /** Volume (0-1), multiplied by global volume */
+  volume?: number;
+  /** Playback rate (0.5-2, default: 1) */
+  rate?: number;
+  /** Whether to loop the sound */
+  loop?: boolean;
+}
+
 // Audio cache for preloaded sounds
 const audioCache: Map<SoundEffect, HTMLAudioElement> = new Map();
 
@@ -76,6 +99,59 @@ let globalVolume = 0.7;
 
 // Mute state
 let isMuted = false;
+
+// ============ RAW API EXPORTS ============
+
+/**
+ * Get all available sound effect names
+ */
+export const getAllSoundEffects = (): SoundEffect[] => {
+  return Object.keys(SOUND_PATHS) as SoundEffect[];
+};
+
+/**
+ * Get the file path for a sound effect
+ */
+export const getSoundPath = (sound: SoundEffect): string => {
+  return SOUND_PATHS[sound];
+};
+
+/**
+ * Create an Audio element for a sound (for advanced control)
+ */
+export const createAudio = (sound: SoundEffect): HTMLAudioElement => {
+  return new Audio(SOUND_PATHS[sound]);
+};
+
+/**
+ * Create an Audio element from any URL (for custom sounds)
+ */
+export const createCustomAudio = (url: string): HTMLAudioElement => {
+  return new Audio(url);
+};
+
+/**
+ * Play a custom audio URL with options
+ */
+export function playCustomSound(
+  url: string,
+  options: PlaySoundOptions = {}
+): HTMLAudioElement | null {
+  if (isMuted) return null;
+
+  try {
+    const audio = new Audio(url);
+    audio.volume = (options.volume ?? 1) * globalVolume;
+    audio.playbackRate = options.rate ?? 1;
+    audio.loop = options.loop ?? false;
+
+    audio.play().catch(() => {});
+    return audio;
+  } catch (error) {
+    console.warn('Error playing custom sound:', error);
+    return null;
+  }
+}
 
 /**
  * Preload a sound effect
@@ -128,14 +204,7 @@ export async function preloadCommonSounds(): Promise<void> {
   await Promise.all(commonSounds.map(preloadSound));
 }
 
-export interface PlaySoundOptions {
-  /** Volume (0-1), multiplied by global volume */
-  volume?: number;
-  /** Playback rate (0.5-2, default: 1) */
-  rate?: number;
-  /** Whether to loop the sound */
-  loop?: boolean;
-}
+// ============ HELPER METHODS ============
 
 /**
  * Play a sound effect

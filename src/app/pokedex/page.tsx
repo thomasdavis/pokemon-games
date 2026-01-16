@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { pokemon, Pokemon, allTypes, allGenerations } from "@/data/pokemon";
+import { playSound } from "@/lib/sounds";
+import { announcePokemon, speak } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
 
 const typeColors: Record<string, string> = {
   normal: "bg-gray-400",
@@ -78,6 +81,34 @@ export default function PokedexPage() {
   const [selectedPokemon, setSelectedPokemon] = useState<Pokemon | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [generationFilter, setGenerationFilter] = useState<string | null>(null);
+  const { name: playerName, soundEnabled, speechEnabled } = usePlayer();
+
+  // Handle Pokemon selection with sounds and speech
+  const handleSelectPokemon = (p: Pokemon) => {
+    if (soundEnabled) {
+      playSound('click');
+    }
+    if (speechEnabled) {
+      announcePokemon(p.name);
+    }
+    setSelectedPokemon(p);
+  };
+
+  // Play pop sound and speak description when modal opens
+  useEffect(() => {
+    if (selectedPokemon) {
+      if (soundEnabled) {
+        playSound('pop');
+      }
+      if (speechEnabled && selectedPokemon.flavor_text) {
+        // Small delay to let the pop sound play first
+        const timer = setTimeout(() => {
+          speak(selectedPokemon.flavor_text);
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [selectedPokemon, soundEnabled, speechEnabled]);
 
   const filteredPokemon = pokemon.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
@@ -88,6 +119,11 @@ export default function PokedexPage() {
 
   return (
     <div className="py-8">
+      <div className="text-center mb-4">
+        <p className="text-lg text-blue-600 font-medium">
+          Welcome, {playerName}!
+        </p>
+      </div>
       <h1 className="text-4xl font-bold text-center text-red-600 mb-2">
         Pokedex
       </h1>
@@ -172,7 +208,7 @@ export default function PokedexPage() {
         {filteredPokemon.map((p) => (
           <button
             key={p.id}
-            onClick={() => setSelectedPokemon(p)}
+            onClick={() => handleSelectPokemon(p)}
             className={`bg-white rounded-2xl p-4 shadow-lg hover:shadow-xl hover:scale-105 transition-all border-4 border-transparent hover:border-yellow-400 ${
               p.is_legendary ? "ring-2 ring-yellow-400" : ""
             } ${p.is_mythical ? "ring-2 ring-purple-400" : ""}`}

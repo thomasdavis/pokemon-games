@@ -4,6 +4,12 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { evolutionChains as evolutionChainsMap, Pokemon } from "@/data/pokemon";
 
+// Import utility packages
+import { playSound } from "@/lib/sounds";
+import { announcePokemon, speak, celebrateWin } from "@/lib/speech";
+import { usePlayer } from "@/lib/player";
+import { getQuickPersonalizedMessage } from "@/lib/ai";
+
 // Game evolution chain type
 interface GameEvolutionChain {
   pokemon: Pokemon[];
@@ -47,6 +53,9 @@ function buildGameEvolutionChains(): GameEvolutionChain[] {
 }
 
 export default function EvolutionPage() {
+  // Get player data
+  const { name: playerName } = usePlayer();
+
   // Build the evolution chains once from database data
   const gameEvolutionChains = useMemo(() => buildGameEvolutionChains(), []);
 
@@ -98,14 +107,28 @@ export default function EvolutionPage() {
       const newOrder = [...selectedOrder, poke.id];
       setSelectedOrder(newOrder);
 
+      // Announce the Pokemon name
+      announcePokemon(poke.name);
+
       if (newOrder.length === 3) {
         // Chain complete!
         setIsComplete(true);
         setScore((s) => s + 1);
         setShowCelebration(true);
+
+        // Play success sound and celebrate
+        playSound("success");
+        setTimeout(() => {
+          celebrateWin();
+        }, 500);
+      } else {
+        // Play levelup/powerup sound for correct selection (not complete yet)
+        playSound("levelup");
+        speak("Correct evolution!");
       }
     } else {
       // Wrong!
+      playSound("error");
       setWrongClick(poke.id);
       setTimeout(() => setWrongClick(null), 500);
     }
@@ -150,8 +173,11 @@ export default function EvolutionPage() {
       <h1 className="text-4xl font-bold text-center text-purple-600 mb-2">
         Evolution Chain
       </h1>
-      <p className="text-center text-xl text-gray-600 mb-6">
+      <p className="text-center text-xl text-gray-600 mb-2">
         Click the Pokemon in the right order: Baby to Big!
+      </p>
+      <p className="text-center text-lg text-purple-500 mb-6">
+        Go get them, {playerName}!
       </p>
 
       {/* Score and Progress */}
@@ -286,7 +312,7 @@ export default function EvolutionPage() {
 
             <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 p-8 rounded-3xl shadow-2xl transform animate-bounce-slow">
               <h2 className="text-5xl font-bold text-white mb-4">
-                Evolution Complete!
+                {getQuickPersonalizedMessage(playerName, "evolution_complete", { pokemonName: currentChain.name }).message} {getQuickPersonalizedMessage(playerName, "evolution_complete").emoji}
               </h2>
               <div className="flex justify-center items-center gap-2 mb-4">
                 {getOrderedPokemon().map((p, idx) => (
