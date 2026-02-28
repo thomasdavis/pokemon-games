@@ -93,3 +93,17 @@ body {
 .card-back {
   transform: rotateY(180deg);
 }
+
+@keyframes fadeScaleIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-scale-in {
+  animation: fadeScaleIn 0.4s ease-out both;
+}

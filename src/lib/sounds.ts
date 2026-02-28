@@ -39,7 +39,6 @@ export type SoundEffect =
   | 'whoosh'
   | 'ding'
   | 'coin'
-  | 'levelup'
   | 'powerup'
   | 'bounce'
   | 'catch'
@@ -64,7 +63,6 @@ const SOUND_PATHS: Record<SoundEffect, string> = {
   whoosh: '/sounds/whoosh.mp3',
   ding: '/sounds/ding.mp3',
   coin: '/sounds/coin.mp3',
-  levelup: '/sounds/levelup.mp3',
   powerup: '/sounds/powerup.mp3',
   bounce: '/sounds/bounce.mp3',
   catch: '/sounds/catch.mp3',
@@ -312,8 +310,8 @@ export const ding = () => playSound('ding');
 /** Play coin/point sound */
 export const coin = () => playSound('coin');
 
-/** Play level up sound */
-export const levelUp = () => playSound('levelup');
+/** Play level up / power up sound */
+export const levelUp = () => playSound('powerup');
 
 /** Play power up sound */
 export const powerUp = () => playSound('powerup');

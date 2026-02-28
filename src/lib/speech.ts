@@ -192,6 +192,11 @@ export function stopSpeaking(): void {
 }
 
 /**
+ * Alias for stopSpeaking - cancel any current speech
+ */
+export const cancelSpeech = stopSpeaking;
+
+/**
  * Check if currently speaking
  */
 export function isSpeaking(): boolean {

@@ -254,7 +254,7 @@ export default function BubblePopPage() {
     difficultyTimerRef.current = window.setInterval(() => {
       setDifficulty(d => {
         // Play level up sound
-        playSound('levelup');
+        playSound('powerup');
         const levelUpMessage = getQuickPersonalizedMessage(playerName, 'level_up');
         speak(levelUpMessage.message, { rate: 1.1 });
         return d + 1;

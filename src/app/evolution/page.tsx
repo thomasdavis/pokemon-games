@@ -123,7 +123,7 @@ export default function EvolutionPage() {
         }, 500);
       } else {
         // Play levelup/powerup sound for correct selection (not complete yet)
-        playSound("levelup");
+        playSound("powerup");
         speak("Correct evolution!");
       }
     } else {
